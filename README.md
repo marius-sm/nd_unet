@@ -1,4 +1,4 @@
-# nd_unet: flexible 1D, 2D, and 3D U-Nets in PyTorch
+# Flexible 1D, 2D, and 3D U-Nets in PyTorch
 
 ```python
 from nd_unet import UNet2d # or UNet1d or UNet3d
