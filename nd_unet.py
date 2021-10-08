@@ -133,10 +133,10 @@ class UNetDecoder(nn.Module):
         return x
         
 class UNet(nn.Module):
-    def __init__(self, dim, in_channels, out_channels, num_stages, initial_num_channels, norm=None, non_lin='relu', kernel_size=3):
+    def __init__(self, dim, in_channels, out_channels, num_stages, initial_num_channels, norm=None, non_lin='relu', kernel_size=3, pooling='max'):
         super().__init__()
         
-        self.encoder = UNetEncoder(dim, in_channels, num_stages, initial_num_channels, norm=norm, non_lin=non_lin, kernel_size=kernel_size)
+        self.encoder = UNetEncoder(dim, in_channels, num_stages, initial_num_channels, norm=norm, non_lin=non_lin, kernel_size=kernel_size, pooling=pooling)
         self.decoder = UNetDecoder(dim, out_channels, num_stages, initial_num_channels, norm=norm, non_lin=non_lin, kernel_size=kernel_size)
             
     def forward(self, x):
