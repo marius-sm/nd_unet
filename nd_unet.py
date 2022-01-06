@@ -44,9 +44,9 @@ def get_conv(dim, *args, **kwargs):
     if dim == 3:
         return nn.Conv3d(*args, **kwargs)
 
-def get_conv_block(dim, in_channels, out_channels, norm, non_lin, kernel_size=3):
+def get_conv_block(dim, in_channels, out_channels, norm, non_lin, kernel_size=3, bias=True):
     padding = kernel_size//2
-    layers = [get_conv(dim, in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=padding)]
+    layers = [get_conv(dim, in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=padding, bias=bias)]
     if norm is not None:
         layers.append(get_norm(norm, num_channels=out_channels, dim=dim))
     if non_lin is not None:
@@ -54,7 +54,17 @@ def get_conv_block(dim, in_channels, out_channels, norm, non_lin, kernel_size=3)
     return nn.Sequential(*layers)
 
 class UNetEncoder(nn.Module):
-    def __init__(self, dim, in_channels, num_stages, initial_num_channels, norm=None, non_lin='relu', kernel_size=3, pooling='max'):
+    def __init__(self,
+    	dim,
+    	in_channels,
+    	num_stages,
+    	initial_num_channels,
+    	norm=None,
+    	non_lin='relu',
+    	kernel_size=3,
+    	pooling='max',
+    	bias=True
+    ):
         super().__init__()
 
         assert pooling in ['avg', 'max'], f"pooling can be 'avg' or 'max'"
@@ -83,8 +93,8 @@ class UNetEncoder(nn.Module):
             block_2_in_channels = block_1_out_channels
             block_2_out_channels = (2**(i+1))*initial_num_channels
             m = nn.Sequential(
-                get_conv_block(dim=dim, in_channels=block_1_in_channels, out_channels=block_1_out_channels, kernel_size=kernel_size, norm=norm, non_lin=non_lin),
-                get_conv_block(dim=dim, in_channels=block_2_in_channels, out_channels=block_2_out_channels, kernel_size=kernel_size, norm=norm, non_lin=non_lin)
+                get_conv_block(dim=dim, in_channels=block_1_in_channels, out_channels=block_1_out_channels, kernel_size=kernel_size, norm=norm, non_lin=non_lin, bias=bias),
+                get_conv_block(dim=dim, in_channels=block_2_in_channels, out_channels=block_2_out_channels, kernel_size=kernel_size, norm=norm, non_lin=non_lin, bias=bias)
             )
             self.module_list.append(m)     
             
@@ -100,7 +110,16 @@ class UNetEncoder(nn.Module):
         return x, acts
 
 class UNetDecoder(nn.Module):
-    def __init__(self, dim, out_channels, num_stages, initial_num_channels, norm=None, non_lin='relu', kernel_size=3):
+    def __init__(self,
+    	dim,
+    	out_channels,
+    	num_stages,
+    	initial_num_channels,
+    	norm=None,
+    	non_lin='relu',
+    	kernel_size=3,
+    	bias=True
+    ):
         super().__init__()
         
         self.module_list = nn.ModuleList()
@@ -109,12 +128,12 @@ class UNetDecoder(nn.Module):
             block_in_channels = (2**(i+1) + (2**(i+2)))*initial_num_channels
             block_out_channels = (2**(i+1))*initial_num_channels
             m = nn.Sequential(
-                get_conv_block(dim=dim, in_channels=block_in_channels, out_channels=block_out_channels, kernel_size=kernel_size, norm=norm, non_lin=non_lin),
-                get_conv_block(dim=dim, in_channels=block_out_channels, out_channels=block_out_channels, kernel_size=kernel_size, norm=norm, non_lin=non_lin)
+                get_conv_block(dim=dim, in_channels=block_in_channels, out_channels=block_out_channels, kernel_size=kernel_size, norm=norm, non_lin=non_lin, bias=bias),
+                get_conv_block(dim=dim, in_channels=block_out_channels, out_channels=block_out_channels, kernel_size=kernel_size, norm=norm, non_lin=non_lin, bias=bias)
             )
             self.module_list.append(m)
 
-        self.final_conv = get_conv(dim, 2*initial_num_channels, out_channels, 1, padding=0)
+        self.final_conv = get_conv(dim, 2*initial_num_channels, out_channels, 1, padding=0, bias=bias)
             
     def forward(self, x, acts):
         
@@ -133,11 +152,22 @@ class UNetDecoder(nn.Module):
         return x
         
 class UNet(nn.Module):
-    def __init__(self, dim, in_channels, out_channels, num_stages, initial_num_channels, norm=None, non_lin='relu', kernel_size=3, pooling='max'):
+    def __init__(self,
+    	dim,
+	    in_channels,
+	    out_channels,
+	    num_stages,
+	    initial_num_channels,
+	    norm=None,
+	    non_lin='relu',
+	    kernel_size=3,
+	    pooling='max',
+	    bias=True
+	):
         super().__init__()
         
-        self.encoder = UNetEncoder(dim, in_channels, num_stages, initial_num_channels, norm=norm, non_lin=non_lin, kernel_size=kernel_size, pooling=pooling)
-        self.decoder = UNetDecoder(dim, out_channels, num_stages, initial_num_channels, norm=norm, non_lin=non_lin, kernel_size=kernel_size)
+        self.encoder = UNetEncoder(dim, in_channels, num_stages, initial_num_channels, norm=norm, non_lin=non_lin, kernel_size=kernel_size, pooling=pooling, bias=bias)
+        self.decoder = UNetDecoder(dim, out_channels, num_stages, initial_num_channels, norm=norm, non_lin=non_lin, kernel_size=kernel_size, bias=bias)
             
     def forward(self, x):
         
