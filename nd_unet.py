@@ -178,7 +178,7 @@ class UNetDecoder(nn.Module):
             )
             self.module_list.append(m)
 
-        self.final_conv = get_conv(dim, 2*initial_num_channels, out_channels, 1, padding=0, bias=bias, padding=padding, padding_mode=padding_mode)
+        self.final_conv = get_conv(dim, 2*initial_num_channels, out_channels, 1, bias=bias, padding=0, padding_mode=padding_mode)
             
     def forward(self, x, acts):
         
