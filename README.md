@@ -12,5 +12,8 @@ unet = UNet2d(
     non_lin='relu',           # Optional, default is 'relu'. Type of activation function. Can be None, 'relu', 'leaky_relu', 'gelu', 'elu'
     kernel_size=3,            # Optional, default is 3. Kernel size for the convolutions
     pooling='max'             # Optional, default is 'max'. Can be 'max' or 'avg'.
+    bias=True,                # Optional, whether to add bias to the convolutions
+    padding='same',           # Optional, can be 'same' (i.e. padding=kernel_size//2 when kernel_size is odd) or an int specifying the padding. Beware, a value different from 'same' can produce an output that has a different size from the input
+    padding_mode='zeros'      # Optional, can be any of the padding modes supported by PyTorch convolutions ('zeros', 'reflect', 'replicate', or 'circular')
 )
 ```
