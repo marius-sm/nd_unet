@@ -66,7 +66,8 @@ class UNetEncoder(nn.Module):
         pooling='max',
         bias=True,
         padding='same',
-        padding_mode='zeros'
+        padding_mode='zeros',
+        stride_sequence=None
     ):
         super().__init__()
 
@@ -74,21 +75,31 @@ class UNetEncoder(nn.Module):
 
         if dim == 1:
             if pooling == 'avg':
-                self.pooling = nn.AvgPool1d(2, 2)
+#                 self.pooling = nn.AvgPool1d(2, 2)
+                pooling_class = nn.AvgPool1d
             else:
-                self.pooling = nn.MaxPool1d(2, 2)
+#                 self.pooling = nn.MaxPool1d(2, 2)
+                pooling_class = nn.MaxPool1d
         if dim == 2:
             if pooling == 'avg':
-                self.pooling = nn.AvgPool2d(2, 2)
+#                 self.pooling = nn.AvgPool2d(2, 2)
+                pooling_class = nn.AvgPool2d
             else:
-                self.pooling = nn.MaxPool2d(2, 2)
+#                 self.pooling = nn.MaxPool2d(2, 2)
+                pooling_class = nn.MaxPool2d
         if dim == 3:
             if pooling == 'avg':
-                self.pooling = nn.AvgPool3d(2, 2)
+#                 self.pooling = nn.AvgPool3d(2, 2)
+                pooling_class = nn.AvgPool3d
             else:
-                self.pooling = nn.MaxPool3d(2, 2)
+#                 self.pooling = nn.MaxPool3d(2, 2)
+                pooling_class = nn.MaxPool3d
+                
+        if stride_sequence is None:
+            stride_sequence = [2] * (num_stages - 1) 
 
         self.module_list = nn.ModuleList()
+        self.pooling_layers = nn.ModuleList()
         
         for i in range(num_stages):
             block_1_in_channels = in_channels if i == 0 else (2**i)*initial_num_channels
@@ -119,15 +130,18 @@ class UNetEncoder(nn.Module):
                     padding_mode=padding_mode
                 )
             )
-            self.module_list.append(m)     
+            self.module_list.append(m)
+            if i < num_stages - 1:
+                self.pooling_layers.append(pooling_class(2, stride_sequence[i]))
             
     def forward(self, x):
         
         acts = []
-        for m in self.module_list[:-1]:
+        for m, p in zip(self.module_list[:-1], self.pooling_layers):
             x = m(x)
             acts.append(x)
-            x = self.pooling(x)
+#             x = self.pooling(x)
+            x = p(x)
         x = self.module_list[-1](x)
 
         return x, acts
@@ -209,7 +223,8 @@ class UNet(nn.Module):
         pooling='max',
         bias=True,
         padding='same',
-        padding_mode='zeros'
+        padding_mode='zeros',
+        stride_sequence=None
     ):
         super().__init__()
         
@@ -224,7 +239,8 @@ class UNet(nn.Module):
             pooling=pooling,
             bias=bias,
             padding=padding,
-            padding_mode=padding_mode
+            padding_mode=padding_mode,
+            stride_sequence=stride_sequence
         )
         self.decoder = UNetDecoder(
             dim=dim,
