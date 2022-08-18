@@ -67,32 +67,28 @@ class UNetEncoder(nn.Module):
         bias=True,
         padding='same',
         padding_mode='zeros',
-        stride_sequence=None
+        stride_sequence=None,
+        skip_connections=True
     ):
         super().__init__()
 
         assert pooling in ['avg', 'max'], f"pooling can be 'avg' or 'max'"
+        self.skip_connections = skip_connections
 
         if dim == 1:
             if pooling == 'avg':
-#                 self.pooling = nn.AvgPool1d(2, 2)
                 pooling_class = nn.AvgPool1d
             else:
-#                 self.pooling = nn.MaxPool1d(2, 2)
                 pooling_class = nn.MaxPool1d
         if dim == 2:
             if pooling == 'avg':
-#                 self.pooling = nn.AvgPool2d(2, 2)
                 pooling_class = nn.AvgPool2d
             else:
-#                 self.pooling = nn.MaxPool2d(2, 2)
                 pooling_class = nn.MaxPool2d
         if dim == 3:
             if pooling == 'avg':
-#                 self.pooling = nn.AvgPool3d(2, 2)
                 pooling_class = nn.AvgPool3d
             else:
-#                 self.pooling = nn.MaxPool3d(2, 2)
                 pooling_class = nn.MaxPool3d
                 
         if stride_sequence is None:
@@ -132,17 +128,23 @@ class UNetEncoder(nn.Module):
             )
             self.module_list.append(m)
             if i < num_stages - 1:
-                self.pooling_layers.append(pooling_class(2, stride_sequence[i]))
+                self.pooling_layers.append(pooling_class(3, stride_sequence[i], padding=1))
             
-    def forward(self, x):
+    def forward(self, x, print_shapes=False):
         
         acts = []
-        for m, p in zip(self.module_list[:-1], self.pooling_layers):
+        for i, (m, p) in enumerate(zip(self.module_list[:-1], self.pooling_layers)):
             x = m(x)
-            acts.append(x)
-#             x = self.pooling(x)
+            if self.skip_connections:
+                acts.append(x)
+            else:
+                acts.append(x[:, 0:0, ...]) # this tensor will only be used by the decoder to infer the shape to which to resize
             x = p(x)
+            if print_shapes:
+                print(f'Shape after encoder block {i}: {x.shape}')
         x = self.module_list[-1](x)
+        if print_shapes:
+            print(f'Shape after encoder block {i+1}: {x.shape}')
 
         return x, acts
 
@@ -157,14 +159,18 @@ class UNetDecoder(nn.Module):
         kernel_size=3,
         bias=True,
         padding='same',
-        padding_mode='zeros'
+        padding_mode='zeros',
+        skip_connections=False
     ):
         super().__init__()
         
         self.module_list = nn.ModuleList()
         
         for i in range(num_stages-1):
-            block_in_channels = (2**(i+1) + (2**(i+2)))*initial_num_channels
+            if skip_connections:
+                block_in_channels = (2**(i+1) + (2**(i+2)))*initial_num_channels
+            else:
+                block_in_channels = (2**(i+2))*initial_num_channels
             block_out_channels = (2**(i+1))*initial_num_channels
             m = nn.Sequential(
                 get_conv_block(
@@ -194,7 +200,7 @@ class UNetDecoder(nn.Module):
 
         self.final_conv = get_conv(dim, 2*initial_num_channels, out_channels, 1, bias=bias, padding=0, padding_mode=padding_mode)
             
-    def forward(self, x, acts):
+    def forward(self, x, acts, print_shapes=False):
         
         interpolation = 'linear'
         if x.dim() == 4:
@@ -202,9 +208,11 @@ class UNetDecoder(nn.Module):
         if x.dim() == 5:
             interpolation = 'trilinear'
 
-        for y, m in zip(reversed(acts), reversed(self.module_list)):
+        for i, (y, m) in enumerate(zip(reversed(acts), reversed(self.module_list))):
             x = F.interpolate(x, y.shape[2:], mode=interpolation, align_corners=True)
             x = m(torch.cat([y, x], 1))
+            if print_shapes:
+                print(f'Shape after decoder block {i}: {x.shape}')
             
         x = self.final_conv(x)
             
@@ -224,7 +232,8 @@ class UNet(nn.Module):
         bias=True,
         padding='same',
         padding_mode='zeros',
-        stride_sequence=None
+        stride_sequence=None,
+        skip_connections=True
     ):
         super().__init__()
         
@@ -240,7 +249,8 @@ class UNet(nn.Module):
             bias=bias,
             padding=padding,
             padding_mode=padding_mode,
-            stride_sequence=stride_sequence
+            stride_sequence=stride_sequence,
+            skip_connections=skip_connections
         )
         self.decoder = UNetDecoder(
             dim=dim,
@@ -252,13 +262,20 @@ class UNet(nn.Module):
             kernel_size=kernel_size,
             bias=bias,
             padding=padding,
-            padding_mode=padding_mode
+            padding_mode=padding_mode,
+            skip_connections=skip_connections
         )
             
-    def forward(self, x):
+    def forward(self, x, print_shapes=False):
+
+        if print_shapes:
+            print('Input shape:', x.shape)
         
-        x, acts = self.encoder(x)
-        x = self.decoder(x, acts)
+        x, acts = self.encoder(x, print_shapes=print_shapes)
+        x = self.decoder(x, acts, print_shapes=print_shapes)
+
+        if print_shapes:
+            print('Output shape:', x.shape)
             
         return x
 
@@ -282,10 +299,12 @@ if __name__ == '__main__':
         initial_num_channels=8,
         norm='bn',
         non_lin='relu',
-        kernel_size=3
+        kernel_size=3,
+        stride_sequence=[1, 1, 2],
+        skip_connections=False
     )
 
-    print(unet(torch.zeros(5, 1, 32, 64, 16)).shape)
+    print(unet(torch.zeros(5, 1, 32, 64, 16), print_shapes=True).shape)
 
     unet = UNet2d(
         in_channels=1,
