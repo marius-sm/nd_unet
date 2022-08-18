@@ -15,5 +15,7 @@ unet = UNet2d(
     bias=True,                # Optional, whether to add bias to the convolutions
     padding='same',           # Optional, can be 'same' (i.e. padding=kernel_size//2 when kernel_size is odd) or an int specifying the padding. Beware, a value different from 'same' can produce an output that has a different size from the input
     padding_mode='zeros'      # Optional, can be any of the padding modes supported by PyTorch convolutions ('zeros', 'reflect', 'replicate', or 'circular')
+    stride_sequence=None,     # Optional, a sequence of strides of length (num_stages - 1) can be provided in order to control pooling. For example, stride_sequence = [(1, 2), (2, 2), (2, 2)] will not reduce the dimension of the first axis in the first layer. Default is stride_sequence = [2] * (num_stages - 1)
+    skip_connections=True     # Optional, whether to use skip connections or not. Default is True.
 )
 ```
